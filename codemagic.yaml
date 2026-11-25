@@ -1,0 +1,54 @@
+workflows:
+  # 1) IPA SEM ASSINATURA (não precisa de conta Apple paga).
+  #    Dá pra instalar depois com Sideloadly / AltStore, que assinam com seu Apple ID.
+  ipa-sem-assinatura:
+    name: IPA sem assinatura
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: latest
+    scripts:
+      - name: Instalar XcodeGen
+        script: brew install xcodegen
+      - name: Gerar projeto Xcode
+        script: xcodegen generate
+      - name: Archive sem assinatura
+        script: |
+          xcodebuild -project Figurinha.xcodeproj -scheme Figurinha \
+            -configuration Release -sdk iphoneos \
+            -archivePath build/Figurinha.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Empacotar .ipa
+        script: |
+          mkdir -p Payload
+          cp -R build/Figurinha.xcarchive/Products/Applications/Figurinha.app Payload/
+          zip -qr Figurinha-unsigned.ipa Payload
+    artifacts:
+      - Figurinha-unsigned.ipa
+
+  # 2) IPA ASSINADO (precisa de Apple Developer Program, US$ 99/ano).
+  #    Antes: Codemagic > Teams > Integrations > App Store Connect, crie a chave
+  #    e troque NOME_DA_CHAVE abaixo pelo nome que você deu a ela.
+  ipa-assinado:
+    name: IPA assinado
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: NOME_DA_CHAVE
+    environment:
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store   # ou development / ad_hoc
+        bundle_identifier: com.seunome.figurinha
+    scripts:
+      - name: Instalar XcodeGen
+        script: brew install xcodegen
+      - name: Gerar projeto Xcode
+        script: xcodegen generate
+      - name: Aplicar assinatura
+        script: xcode-project use-profiles
+      - name: Gerar IPA
+        script: |
+          xcode-project build-ipa --project Figurinha.xcodeproj --scheme Figurinha
+    artifacts:
+      - build/ios/ipa/*.ipa
